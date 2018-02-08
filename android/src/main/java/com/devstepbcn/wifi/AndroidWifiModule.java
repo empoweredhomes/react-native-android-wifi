@@ -159,6 +159,18 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
             }
         }
     }
+	public void checkSettingPermission(Callback granted){
+		boolean canWriteFlag = false;
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+				canWriteFlag = Settings.System.canWrite(context);
+				granted.invoke(canWriteFlag);
+			}
+		}else{
+			granted.invoke(true);
+		}
+
+	}
 
 	//Method to check if wifi is enabled
 	@ReactMethod
