@@ -200,90 +200,54 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 			connectionStatusResult.invoke(false);
 		}
 	}
+		//Method to connect to WIFI Network
+	public boolean connectTo(String knownSSID,String key) {
 
-	//Method to connect to WIFI Network
-	public Boolean connectTo(ScanResult result, String password, String ssid) {
-		//Make new configuration
-		WifiConfiguration conf = new WifiConfiguration();
-		
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-        conf.SSID = ssid;
-    } else {
-        conf.SSID = "\"" + ssid + "\"";
-    }
+		try {
+			//If Wifi is not enabled, enable it
+			if (!wifi.isWifiEnabled()) {
+				wifi.setWifiEnabled(true);
+			}
+			WifiConfiguration config = new WifiConfiguration();
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+				config.SSID = "\"" + knownSSID + "\"";
+			} else {
+				config.SSID = "\"" + knownSSID + "\"";
+			}
+			if(key.isEmpty()){
+			config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);}
+			
+			int networkId = wifi.addNetwork(config);
 
-		String capabilities = result.capabilities;
-		
-		if (capabilities.contains("WPA")  || 
-          capabilities.contains("WPA2") || 
-          capabilities.contains("WPA/WPA2 PSK")) {
+			// it will return -1 if the config is already saved..
+			if (networkId == -1) {
+				networkId = getExistingNetworkId(config.SSID);
+			}
+			boolean es = wifi.saveConfiguration();
 
-	    // appropriate ciper is need to set according to security type used,
-	    // ifcase of not added it will not be able to connect
-	    conf.preSharedKey = "\"" + password + "\"";
-	    
-	    conf.allowedProtocols.set(WifiConfiguration.Protocol.RSN);
-	    
-	    conf.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK);
-	    
-	    conf.status = WifiConfiguration.Status.ENABLED;
-	    
-	    conf.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.TKIP);
-	    conf.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.CCMP);
-	    
-	    conf.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK);
-	    
-	    conf.allowedPairwiseCiphers.set(WifiConfiguration.PairwiseCipher.TKIP);
-	    conf.allowedPairwiseCiphers.set(WifiConfiguration.PairwiseCipher.CCMP);
-	    
-	    conf.allowedProtocols.set(WifiConfiguration.Protocol.RSN);
-	    conf.allowedProtocols.set(WifiConfiguration.Protocol.WPA);
+			wifi.disconnect();
+			// giving time to disconnect here.
+			Thread.sleep(3 * 1000);
+			boolean bRet = wifi.enableNetwork(networkId, true);
+			if(!bRet){return false;}
+			wifi.reconnect();
 
-		}	else if (capabilities.contains("WEP")) {
-			conf.wepKeys[0] = "\"" + password + "\"";
-			conf.wepTxKeyIndex = 0;
-			conf.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
-			conf.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.WEP40);
-
-		} else {
-			conf.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
+		} catch (InterruptedException e) {
 		}
+		return true;
 
-		//Remove the existing configuration for this netwrok
-		List<WifiConfiguration> mWifiConfigList = wifi.getConfiguredNetworks();
-
-		int updateNetwork = -1;
-
-		for(WifiConfiguration wifiConfig : mWifiConfigList){
-			if(wifiConfig.SSID.equals(conf.SSID)){
-				conf.networkId = wifiConfig.networkId;
-				updateNetwork = wifi.updateNetwork(conf);
+	}
+	public int getExistingNetworkId(String SSID){
+		List<WifiConfiguration> configuredNetworks = wifi.getConfiguredNetworks();
+		if (configuredNetworks != null) {
+			for (WifiConfiguration existingConfig : configuredNetworks) {
+				if (SSID.equalsIgnoreCase(existingConfig.SSID)) {
+					return existingConfig.networkId;
+				}
 			}
 		}
-
-    // If network not already in configured networks add new network
-		if ( updateNetwork == -1 ) {
-      updateNetwork = wifi.addNetwork(conf);
-      wifi.saveConfiguration();
-		};
-
-    if ( updateNetwork == -1 ) {
-      return false;
-    }
-
-    boolean disconnect = wifi.disconnect();
-		if ( !disconnect ) {
-			return false;
-		};
-
-		boolean enableNetwork = wifi.enableNetwork(updateNetwork, true);
-		if ( !enableNetwork ) {
-			return false;
-		};
-
-		return true;
+		return -1;
 	}
-
 	//Disconnect current Wifi.
 	@ReactMethod
 	public void disconnect() {
