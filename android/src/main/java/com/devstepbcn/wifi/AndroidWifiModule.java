@@ -183,7 +183,7 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 		for (ScanResult result: results) {
 			String resultString = "" + result.SSID;
 			if (ssid.equals(resultString)) {
-				connected = connectTo(result, password, ssid);
+				connected = connectTo(ssid,password);
 			}
 		}
 		ssidFound.invoke(connected);
@@ -229,7 +229,6 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 			// giving time to disconnect here.
 			Thread.sleep(3 * 1000);
 			boolean bRet = wifi.enableNetwork(networkId, true);
-			if(!bRet){return false;}
 			wifi.reconnect();
 
 		} catch (InterruptedException e) {
