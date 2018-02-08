@@ -159,6 +159,7 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
             }
         }
     }
+	@ReactMethod
 	public void checkSettingPermission(Callback granted){
 		boolean canWriteFlag = false;
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
