@@ -30,6 +30,7 @@ import android.content.BroadcastReceiver;
 import android.os.Build;
 import android.os.Bundle;
 import android.widget.Toast;
+import android.util.Log;
 import java.util.List;
 import java.lang.Thread;
 
@@ -42,11 +43,13 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 	//WifiManager Instance
 	WifiManager wifi;
 	ReactApplicationContext context;
+	WifiManager.WifiLock mWifiLock = null;
+	String TAG = "WIFIACTIVITY";
 
 	//Constructor
 	public AndroidWifiModule(ReactApplicationContext reactContext) {
 		super(reactContext);
-		wifi = (WifiManager)reactContext.getSystemService(Context.WIFI_SERVICE);
+		wifi = (WifiManager) reactContext.getSystemService(Context.WIFI_SERVICE);
 		context = (ReactApplicationContext) getReactApplicationContext();
 	}
 
@@ -60,27 +63,27 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 	@ReactMethod
 	public void loadWifiList(Callback successCallback, Callback errorCallback) {
 		try {
-			List < ScanResult > results = wifi.getScanResults();
+			List<ScanResult> results = wifi.getScanResults();
 			JSONArray wifiArray = new JSONArray();
 
-			for (ScanResult result: results) {
+			for (ScanResult result : results) {
 				JSONObject wifiObject = new JSONObject();
-				if(!result.SSID.equals("")){
+				if (!result.SSID.equals("")) {
 					try {
-            wifiObject.put("SSID", result.SSID);
-            wifiObject.put("BSSID", result.BSSID);
-            wifiObject.put("capabilities", result.capabilities);
-            wifiObject.put("frequency", result.frequency);
-            wifiObject.put("level", result.level);
-            wifiObject.put("timestamp", result.timestamp);
-            //Other fields not added
-            //wifiObject.put("operatorFriendlyName", result.operatorFriendlyName);
-            //wifiObject.put("venueName", result.venueName);
-            //wifiObject.put("centerFreq0", result.centerFreq0);
-            //wifiObject.put("centerFreq1", result.centerFreq1);
-            //wifiObject.put("channelWidth", result.channelWidth);
+						wifiObject.put("SSID", result.SSID);
+						wifiObject.put("BSSID", result.BSSID);
+						wifiObject.put("capabilities", result.capabilities);
+						wifiObject.put("frequency", result.frequency);
+						wifiObject.put("level", result.level);
+						wifiObject.put("timestamp", result.timestamp);
+						//Other fields not added
+						//wifiObject.put("operatorFriendlyName", result.operatorFriendlyName);
+						//wifiObject.put("venueName", result.venueName);
+						//wifiObject.put("centerFreq0", result.centerFreq0);
+						//wifiObject.put("centerFreq1", result.centerFreq1);
+						//wifiObject.put("channelWidth", result.channelWidth);
 					} catch (JSONException e) {
-          	errorCallback.invoke(e.getMessage());
+						errorCallback.invoke(e.getMessage());
 					}
 					wifiArray.put(wifiObject);
 				}
@@ -101,74 +104,106 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 	//and remember to disable it when disconnecting from device.
 	@ReactMethod
 	public void forceWifiUsage(boolean useWifi) {
-        boolean canWriteFlag = false;
-		
-        if (useWifi) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+		boolean canWriteFlag = false;
 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    canWriteFlag = Settings.System.canWrite(context);
+		if (useWifi) {
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
 
-                    if (!canWriteFlag) {
-                        Intent intent = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS);
-                        intent.setData(Uri.parse("package:" + context.getPackageName()));
-                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+				if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+					canWriteFlag = Settings.System.canWrite(context);
 
-                        context.startActivity(intent);
-                    }
+					if (!canWriteFlag) {
+						Intent intent = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS);
+						intent.setData(Uri.parse("package:" + context.getPackageName()));
+						intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 
-                }
+						context.startActivity(intent);
+					}
 
+				}
 
-                if (((Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) && canWriteFlag) || ((Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) && !(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M))) {
-                    final ConnectivityManager manager = (ConnectivityManager) context
-                            .getSystemService(Context.CONNECTIVITY_SERVICE);
-                    NetworkRequest.Builder builder;
-                    builder = new NetworkRequest.Builder();
-                    //set the transport type do WIFI
-                    builder.addTransportType(NetworkCapabilities.TRANSPORT_WIFI);
+				if (((Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) && canWriteFlag)
+						|| ((Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
+								&& !(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M))) {
+					final ConnectivityManager manager = (ConnectivityManager) context
+							.getSystemService(Context.CONNECTIVITY_SERVICE);
+					NetworkRequest.Builder builder;
+					builder = new NetworkRequest.Builder();
+					//set the transport type do WIFI
+					builder.addTransportType(NetworkCapabilities.TRANSPORT_WIFI);
+					mWifiLock = wifi.createWifiLock(WIFI_MODE_FULL_HIGH_PERF, 'WIFI_MODE_FULL_HIGH_PERF == CREATE');
+					manager.requestNetwork(builder.build(), new ConnectivityManager.NetworkCallback() {
+						@Override
+						public void onAvailable(Network network) {
+							if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+								if( !mWifiLock.isHeld() ){
+									mWifiLock.acquire();
+								}
+								manager.bindProcessToNetwork(network);
+							} else {
+								//This method was deprecated in API level 23
+								mWifiLock = wifi.createWifiLock(WIFI_MODE_FULL_HIGH_PERF, 'WIFI_MODE_FULL_HIGH_PERF == CREATE');
+								if( !mWifiLock.isHeld() ){
+									mWifiLock.acquire();
+								}
+								ConnectivityManager.setProcessDefaultNetwork(network);
+							}
+							try {
+							} catch (Exception e) {
+								e.printStackTrace();
+							}
+							manager.unregisterNetworkCallback(this);
+						}
+					});
+				}
 
+			}
+		} else {
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+				ConnectivityManager manager = (ConnectivityManager) context
+						.getSystemService(Context.CONNECTIVITY_SERVICE);
+				manager.bindProcessToNetwork(null);	
+				if( mWifiLock != null && mWifiLock.isHeld() ){
+					mWifiLock.release();
+				}			
+				} else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+				ConnectivityManager.setProcessDefaultNetwork(null);
+	
+				if( mWifiLock != null && mWifiLock.isHeld() ){
+					mWifiLock.release();
+				}
+			}
+		}
+	}
 
-                    manager.requestNetwork(builder.build(), new ConnectivityManager.NetworkCallback() {
-                        @Override
-                        public void onAvailable(Network network) {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                                manager.bindProcessToNetwork(network);
-                            } else {
-                                //This method was deprecated in API level 23
-                                ConnectivityManager.setProcessDefaultNetwork(network);
-                            }
-                            try {
-                            } catch (Exception e) {
-                                e.printStackTrace();
-                            }
-                            manager.unregisterNetworkCallback(this);
-                        }
-                    });
-                }
-
-
-            }
-        } else {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                ConnectivityManager manager = (ConnectivityManager) context
-                        .getSystemService(Context.CONNECTIVITY_SERVICE);
-                manager.bindProcessToNetwork(null);
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                ConnectivityManager.setProcessDefaultNetwork(null);
-            }
-        }
-    }
 	@ReactMethod
-	public void checkSettingPermission(Callback granted){
+	public void checkSettingPermission(Callback granted) {
 		boolean canWriteFlag = false;
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
 			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
 				canWriteFlag = Settings.System.canWrite(context);
 				granted.invoke(canWriteFlag);
 			}
-		}else{
+		} else {
 			granted.invoke(true);
+		}
+
+	}
+
+	@ReactMethod
+	public void requestSettingPermission() {
+		boolean canWriteFlag = false;
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+				canWriteFlag = Settings.System.canWrite(context);
+				if (!canWriteFlag) {
+					Intent intent = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS);
+					intent.setData(Uri.parse("package:" + context.getPackageName()));
+					intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+					context.startActivity(intent);
+				}
+			}
 		}
 
 	}
@@ -191,12 +226,12 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 	//Callback returns true if ssid is in the range
 	@ReactMethod
 	public void findAndConnect(String ssid, String password, Callback ssidFound) {
-		List < ScanResult > results = wifi.getScanResults();
+		List<ScanResult> results = wifi.getScanResults();
 		boolean connected = false;
-		for (ScanResult result: results) {
+		for (ScanResult result : results) {
 			String resultString = "" + result.SSID;
 			if (ssid.equals(resultString)) {
-				connected = connectTo(ssid,password);
+				connected = connectTo(ssid, password);
 			}
 		}
 		ssidFound.invoke(connected);
@@ -205,7 +240,8 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 	//Use this method to check if the device is currently connected to Wifi.
 	@ReactMethod
 	public void connectionStatus(Callback connectionStatusResult) {
-		ConnectivityManager connManager = (ConnectivityManager) getReactApplicationContext().getSystemService(Context.CONNECTIVITY_SERVICE);
+		ConnectivityManager connManager = (ConnectivityManager) getReactApplicationContext()
+				.getSystemService(Context.CONNECTIVITY_SERVICE);
 		NetworkInfo mWifi = connManager.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
 		if (mWifi.isConnected()) {
 			connectionStatusResult.invoke(true);
@@ -213,8 +249,9 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 			connectionStatusResult.invoke(false);
 		}
 	}
-		//Method to connect to WIFI Network
-	public boolean connectTo(String knownSSID,String key) {
+
+	//Method to connect to WIFI Network
+	public boolean connectTo(String knownSSID, String key) {
 
 		try {
 			//If Wifi is not enabled, enable it
@@ -227,16 +264,23 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 			} else {
 				config.SSID = "\"" + knownSSID + "\"";
 			}
-			if(key.isEmpty()){
-			config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);}
-			
+			if (key.isEmpty()) {
+				config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
+			}
+			Log.println(5, TAG, "===IT DID GET CALL" + config + "======CONFIG");
+
 			int networkId = wifi.addNetwork(config);
+			Log.println(5, TAG, "===IT DID GET CALL" + networkId + "======CONFIG");
 
 			// it will return -1 if the config is already saved..
 			if (networkId == -1) {
 				networkId = getExistingNetworkId(config.SSID);
 			}
-			boolean es = wifi.saveConfiguration();
+
+			if (Build.VERSION.SDK_INT < 26) {
+				Log.println(5, TAG, "===IT DID GET CALL");
+				boolean es = wifi.saveConfiguration();
+			}
 
 			wifi.disconnect();
 			// giving time to disconnect here.
@@ -245,11 +289,13 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 			wifi.reconnect();
 
 		} catch (InterruptedException e) {
+
 		}
 		return true;
 
 	}
-	public int getExistingNetworkId(String SSID){
+
+	public int getExistingNetworkId(String SSID) {
 		List<WifiConfiguration> configuredNetworks = wifi.getConfiguredNetworks();
 		if (configuredNetworks != null) {
 			for (WifiConfiguration existingConfig : configuredNetworks) {
@@ -260,6 +306,7 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 		}
 		return -1;
 	}
+
 	//Disconnect current Wifi.
 	@ReactMethod
 	public void disconnect() {
@@ -316,16 +363,16 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 	//This method will remove the wifi network as per the passed SSID from the device list
 	@ReactMethod
 	public void isRemoveWifiNetwork(String ssid, final Callback callback) {
-    List<WifiConfiguration> mWifiConfigList = wifi.getConfiguredNetworks();
-    for (WifiConfiguration wifiConfig : mWifiConfigList) {
-				String comparableSSID = ('"' + ssid + '"'); //Add quotes because wifiConfig.SSID has them
-				if(wifiConfig.SSID.equals(comparableSSID)) {
-					wifi.removeNetwork(wifiConfig.networkId);
-					wifi.saveConfiguration();
-					callback.invoke(true);
-					return;
-				}
-    }
+		List<WifiConfiguration> mWifiConfigList = wifi.getConfiguredNetworks();
+		for (WifiConfiguration wifiConfig : mWifiConfigList) {
+			String comparableSSID = ('"' + ssid + '"'); //Add quotes because wifiConfig.SSID has them
+			if (wifiConfig.SSID.equals(comparableSSID)) {
+				wifi.removeNetwork(wifiConfig.networkId);
+				wifi.saveConfiguration();
+				callback.invoke(true);
+				return;
+			}
+		}
 		callback.invoke(false);
 	}
 
@@ -333,17 +380,18 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 	@ReactMethod
 	public void reScanAndLoadWifiList(Callback successCallback, Callback errorCallback) {
 		WifiReceiver receiverWifi = new WifiReceiver(wifi, successCallback, errorCallback);
-   	getReactApplicationContext().getCurrentActivity().registerReceiver(receiverWifi, new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
-    wifi.startScan();
+		getReactApplicationContext().getCurrentActivity().registerReceiver(receiverWifi,
+				new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
+		wifi.startScan();
 	}
 
-	public static String longToIP(int longIp){
+	public static String longToIP(int longIp) {
 		StringBuffer sb = new StringBuffer("");
-		String[] strip=new String[4];
-		strip[3]=String.valueOf((longIp >>> 24));
-		strip[2]=String.valueOf((longIp & 0x00FFFFFF) >>> 16);
-		strip[1]=String.valueOf((longIp & 0x0000FFFF) >>> 8);
-		strip[0]=String.valueOf((longIp & 0x000000FF));
+		String[] strip = new String[4];
+		strip[3] = String.valueOf((longIp >>> 24));
+		strip[2] = String.valueOf((longIp & 0x00FFFFFF) >>> 16);
+		strip[1] = String.valueOf((longIp & 0x0000FFFF) >>> 8);
+		strip[0] = String.valueOf((longIp & 0x000000FF));
 		sb.append(strip[0]);
 		sb.append(".");
 		sb.append(strip[1]);
@@ -356,49 +404,49 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 
 	class WifiReceiver extends BroadcastReceiver {
 
-			private Callback successCallback;
-			private Callback errorCallback;
-			private WifiManager wifi;
+		private Callback successCallback;
+		private Callback errorCallback;
+		private WifiManager wifi;
 
-			public WifiReceiver(final WifiManager wifi, Callback successCallback, Callback errorCallback) {
-				super();
-				this.successCallback = successCallback;
-				this.errorCallback = errorCallback;
-				this.wifi = wifi;
- 			}
+		public WifiReceiver(final WifiManager wifi, Callback successCallback, Callback errorCallback) {
+			super();
+			this.successCallback = successCallback;
+			this.errorCallback = errorCallback;
+			this.wifi = wifi;
+		}
 
-			// This method call when number of wifi connections changed
-      public void onReceive(Context c, Intent intent) {
-				// LocalBroadcastManager.getInstance(c).unregisterReceiver(this);
-				c.unregisterReceiver(this);
-				// getReactApplicationContext().getCurrentActivity().registerReceiver
-				try {
-					List < ScanResult > results = this.wifi.getScanResults();
-					JSONArray wifiArray = new JSONArray();
+		// This method call when number of wifi connections changed
+		public void onReceive(Context c, Intent intent) {
+			// LocalBroadcastManager.getInstance(c).unregisterReceiver(this);
+			c.unregisterReceiver(this);
+			// getReactApplicationContext().getCurrentActivity().registerReceiver
+			try {
+				List<ScanResult> results = this.wifi.getScanResults();
+				JSONArray wifiArray = new JSONArray();
 
-					for (ScanResult result: results) {
-						JSONObject wifiObject = new JSONObject();
-						if(!result.SSID.equals("")){
-							try {
-		            wifiObject.put("SSID", result.SSID);
-		            wifiObject.put("BSSID", result.BSSID);
-		            wifiObject.put("capabilities", result.capabilities);
-		            wifiObject.put("frequency", result.frequency);
-		            wifiObject.put("level", result.level);
-		            wifiObject.put("timestamp", result.timestamp);
-							} catch (JSONException e) {
-		          	this.errorCallback.invoke(e.getMessage());
-								return;
-							}
-							wifiArray.put(wifiObject);
+				for (ScanResult result : results) {
+					JSONObject wifiObject = new JSONObject();
+					if (!result.SSID.equals("")) {
+						try {
+							wifiObject.put("SSID", result.SSID);
+							wifiObject.put("BSSID", result.BSSID);
+							wifiObject.put("capabilities", result.capabilities);
+							wifiObject.put("frequency", result.frequency);
+							wifiObject.put("level", result.level);
+							wifiObject.put("timestamp", result.timestamp);
+						} catch (JSONException e) {
+							this.errorCallback.invoke(e.getMessage());
+							return;
 						}
+						wifiArray.put(wifiObject);
 					}
-					this.successCallback.invoke(wifiArray.toString());
-					return;
-				} catch (IllegalViewOperationException e) {
-					this.errorCallback.invoke(e.getMessage());
-					return;
 				}
-      }
-  }
+				this.successCallback.invoke(wifiArray.toString());
+				return;
+			} catch (IllegalViewOperationException e) {
+				this.errorCallback.invoke(e.getMessage());
+				return;
+			}
+		}
+	}
 }
