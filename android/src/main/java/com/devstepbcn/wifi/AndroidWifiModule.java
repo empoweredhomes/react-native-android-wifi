@@ -109,20 +109,20 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 		if (useWifi) {
 			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
 
-				if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-					canWriteFlag = Settings.System.canWrite(context);
+				// if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+				// 	canWriteFlag = Settings.System.canWrite(context);
 
-					if (!canWriteFlag) {
-						Intent intent = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS);
-						intent.setData(Uri.parse("package:" + context.getPackageName()));
-						intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+				// 	if (!canWriteFlag) {
+				// 		Intent intent = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS);
+				// 		intent.setData(Uri.parse("package:" + context.getPackageName()));
+				// 		intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 
-						context.startActivity(intent);
-					}
+				// 		context.startActivity(intent);
+				// 	}
 
-				}
-
-				if (((Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) && canWriteFlag)
+				// }
+				// mWifiLock = wifi.createWifiLock(wifi.WIFI_MODE_FULL_HIGH_PERF, "WIFI_MODE_FULL_HIGH_PERF == CREATE");
+				if (((Build.VERSION.SDK_INT >= Build.VERSION_CODES.M))
 						|| ((Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
 								&& !(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M))) {
 					final ConnectivityManager manager = (ConnectivityManager) context
@@ -131,21 +131,20 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 					builder = new NetworkRequest.Builder();
 					//set the transport type do WIFI
 					builder.addTransportType(NetworkCapabilities.TRANSPORT_WIFI);
-					mWifiLock = wifi.createWifiLock(WIFI_MODE_FULL_HIGH_PERF, 'WIFI_MODE_FULL_HIGH_PERF == CREATE');
+
 					manager.requestNetwork(builder.build(), new ConnectivityManager.NetworkCallback() {
 						@Override
 						public void onAvailable(Network network) {
 							if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-								if( !mWifiLock.isHeld() ){
-									mWifiLock.acquire();
-								}
+								// if (!mWifiLock.isHeld()) {
+								// 	mWifiLock.acquire();
+								// }
 								manager.bindProcessToNetwork(network);
 							} else {
 								//This method was deprecated in API level 23
-								mWifiLock = wifi.createWifiLock(WIFI_MODE_FULL_HIGH_PERF, 'WIFI_MODE_FULL_HIGH_PERF == CREATE');
-								if( !mWifiLock.isHeld() ){
-									mWifiLock.acquire();
-								}
+								// if (!mWifiLock.isHeld()) {
+								// 	mWifiLock.acquire();
+								// }
 								ConnectivityManager.setProcessDefaultNetwork(network);
 							}
 							try {
@@ -159,19 +158,20 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 
 			}
 		} else {
+
 			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
 				ConnectivityManager manager = (ConnectivityManager) context
 						.getSystemService(Context.CONNECTIVITY_SERVICE);
-				manager.bindProcessToNetwork(null);	
-				if( mWifiLock != null && mWifiLock.isHeld() ){
-					mWifiLock.release();
-				}			
-				} else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+				manager.bindProcessToNetwork(null);
+				// if (mWifiLock != null && mWifiLock.isHeld()) {
+				// 	mWifiLock.release();
+				// }
+			} else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
 				ConnectivityManager.setProcessDefaultNetwork(null);
-	
-				if( mWifiLock != null && mWifiLock.isHeld() ){
-					mWifiLock.release();
-				}
+
+				// if (mWifiLock != null && mWifiLock.isHeld()) {
+				// 	mWifiLock.release();
+				// }
 			}
 		}
 	}
@@ -232,6 +232,21 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 			String resultString = "" + result.SSID;
 			if (ssid.equals(resultString)) {
 				connected = connectTo(ssid, password);
+
+			}
+		}
+		ssidFound.invoke(connected);
+	}
+
+	@ReactMethod
+	public void findAndreConnect(String ssid, String password, Callback ssidFound) {
+		List<ScanResult> results = wifi.getScanResults();
+		boolean connected = false;
+		for (ScanResult result : results) {
+			String resultString = "" + result.SSID;
+			if (ssid.equals(resultString)) {
+				connected = reConnectTo(ssid, password);
+
 			}
 		}
 		ssidFound.invoke(connected);
@@ -252,7 +267,6 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 
 	//Method to connect to WIFI Network
 	public boolean connectTo(String knownSSID, String key) {
-
 		try {
 			//If Wifi is not enabled, enable it
 			if (!wifi.isWifiEnabled()) {
@@ -267,18 +281,13 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 			if (key.isEmpty()) {
 				config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
 			}
-			Log.println(5, TAG, "===IT DID GET CALL" + config + "======CONFIG");
-
 			int networkId = wifi.addNetwork(config);
-			Log.println(5, TAG, "===IT DID GET CALL" + networkId + "======CONFIG");
-
 			// it will return -1 if the config is already saved..
 			if (networkId == -1) {
 				networkId = getExistingNetworkId(config.SSID);
 			}
 
 			if (Build.VERSION.SDK_INT < 26) {
-				Log.println(5, TAG, "===IT DID GET CALL");
 				boolean es = wifi.saveConfiguration();
 			}
 
@@ -286,13 +295,33 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 			// giving time to disconnect here.
 			Thread.sleep(3 * 1000);
 			boolean bRet = wifi.enableNetwork(networkId, true);
-			wifi.reconnect();
+			boolean reconnect = wifi.reconnect();
+			if (!reconnect) {
+				wifi.reconnect();
+			}
 
 		} catch (InterruptedException e) {
 
 		}
 		return true;
+	}
 
+	//Method to connect to WIFI Network
+	public boolean reConnectTo(String knownSSID, String key) {
+		int networkId = -1;
+		networkId = getExistingNetworkId("\"" + knownSSID + "\"");
+		Log.println(5, TAG, "getting the networkID " + networkId + "   " + TAG);
+		if (Build.VERSION.SDK_INT < 26) {
+			boolean es = wifi.saveConfiguration();
+		}
+		wifi.disconnect();
+		boolean bRet = wifi.enableNetwork(networkId, true);
+		boolean reconnect = wifi.reconnect();
+		if (!reconnect) {
+			wifi.reconnect();
+		}
+
+		return true;
 	}
 
 	public int getExistingNetworkId(String SSID) {
@@ -305,6 +334,24 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 			}
 		}
 		return -1;
+	}
+
+	@ReactMethod
+	public void disableScannedNetworks() {
+		List<ScanResult> results = wifi.getScanResults();
+		for (ScanResult result : results) {
+			String resultString = "" + result.SSID;
+			int networkId = getExistingNetworkId("\"" + resultString + "\"");
+			if (networkId == -1) {
+				continue;
+			}
+			wifi.disconnect();
+			boolean remove = wifi.removeNetwork(networkId);
+			if (!remove) {
+				wifi.removeNetwork(networkId);
+			}
+
+		}
 	}
 
 	//Disconnect current Wifi.
