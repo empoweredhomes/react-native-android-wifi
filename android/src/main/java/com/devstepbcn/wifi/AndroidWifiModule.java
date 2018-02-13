@@ -109,19 +109,6 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 		if (useWifi) {
 			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
 
-				// if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-				// 	canWriteFlag = Settings.System.canWrite(context);
-
-				// 	if (!canWriteFlag) {
-				// 		Intent intent = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS);
-				// 		intent.setData(Uri.parse("package:" + context.getPackageName()));
-				// 		intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-
-				// 		context.startActivity(intent);
-				// 	}
-
-				// }
-				// mWifiLock = wifi.createWifiLock(wifi.WIFI_MODE_FULL_HIGH_PERF, "WIFI_MODE_FULL_HIGH_PERF == CREATE");
 				if (((Build.VERSION.SDK_INT >= Build.VERSION_CODES.M))
 						|| ((Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
 								&& !(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M))) {
@@ -136,15 +123,8 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 						@Override
 						public void onAvailable(Network network) {
 							if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-								// if (!mWifiLock.isHeld()) {
-								// 	mWifiLock.acquire();
-								// }
 								manager.bindProcessToNetwork(network);
 							} else {
-								//This method was deprecated in API level 23
-								// if (!mWifiLock.isHeld()) {
-								// 	mWifiLock.acquire();
-								// }
 								ConnectivityManager.setProcessDefaultNetwork(network);
 							}
 							try {
@@ -163,15 +143,9 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 				ConnectivityManager manager = (ConnectivityManager) context
 						.getSystemService(Context.CONNECTIVITY_SERVICE);
 				manager.bindProcessToNetwork(null);
-				// if (mWifiLock != null && mWifiLock.isHeld()) {
-				// 	mWifiLock.release();
-				// }
+
 			} else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
 				ConnectivityManager.setProcessDefaultNetwork(null);
-
-				// if (mWifiLock != null && mWifiLock.isHeld()) {
-				// 	mWifiLock.release();
-				// }
 			}
 		}
 	}
@@ -267,41 +241,37 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 
 	//Method to connect to WIFI Network
 	public boolean connectTo(String knownSSID, String key) {
-		try {
-			//If Wifi is not enabled, enable it
-			if (!wifi.isWifiEnabled()) {
-				wifi.setWifiEnabled(true);
-			}
-			WifiConfiguration config = new WifiConfiguration();
-			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-				config.SSID = "\"" + knownSSID + "\"";
-			} else {
-				config.SSID = "\"" + knownSSID + "\"";
-			}
-			if (key.isEmpty()) {
-				config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
-			}
-			int networkId = wifi.addNetwork(config);
-			// it will return -1 if the config is already saved..
-			if (networkId == -1) {
-				networkId = getExistingNetworkId(config.SSID);
-			}
 
-			if (Build.VERSION.SDK_INT < 26) {
-				boolean es = wifi.saveConfiguration();
-			}
+		//If Wifi is not enabled, enable it
+		if (!wifi.isWifiEnabled()) {
+			wifi.setWifiEnabled(true);
+		}
+		WifiConfiguration config = new WifiConfiguration();
 
+		config.SSID = "\"" + knownSSID + "\"";
+
+		if (key.isEmpty()) {
+			config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
+		}
+		int networkId = wifi.addNetwork(config);
+		// it will return -1 if the config is already saved..
+		if (networkId == -1) {
+			networkId = getExistingNetworkId(config.SSID);
+		}
+
+		if (Build.VERSION.SDK_INT < 26) {
+			boolean es = wifi.saveConfiguration();
+		}
+
+		boolean disconnect = wifi.disconnect();
+		if (!disconnect) {
 			wifi.disconnect();
-			// giving time to disconnect here.
-			Thread.sleep(3 * 1000);
-			boolean bRet = wifi.enableNetwork(networkId, true);
-			boolean reconnect = wifi.reconnect();
-			if (!reconnect) {
-				wifi.reconnect();
-			}
-
-		} catch (InterruptedException e) {
-
+		}
+		// giving time to disconnect here.
+		boolean bRet = wifi.enableNetwork(networkId, true);
+		boolean reconnect = wifi.reconnect();
+		if (!reconnect) {
+			wifi.reconnect();
 		}
 		return true;
 	}
