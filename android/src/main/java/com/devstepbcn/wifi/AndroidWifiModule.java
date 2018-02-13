@@ -247,7 +247,7 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 			wifi.setWifiEnabled(true);
 		}
 		WifiConfiguration config = new WifiConfiguration();
-
+		config.priority = 10000;
 		config.SSID = "\"" + knownSSID + "\"";
 
 		if (key.isEmpty()) {
@@ -264,9 +264,6 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 		}
 
 		boolean disconnect = wifi.disconnect();
-		if (!disconnect) {
-			wifi.disconnect();
-		}
 		// giving time to disconnect here.
 		boolean bRet = wifi.enableNetwork(networkId, true);
 		boolean reconnect = wifi.reconnect();
@@ -284,7 +281,7 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 		if (Build.VERSION.SDK_INT < 26) {
 			boolean es = wifi.saveConfiguration();
 		}
-		wifi.disconnect();
+		boolean disconnect = wifi.disconnect();
 		boolean bRet = wifi.enableNetwork(networkId, true);
 		boolean reconnect = wifi.reconnect();
 		if (!reconnect) {
