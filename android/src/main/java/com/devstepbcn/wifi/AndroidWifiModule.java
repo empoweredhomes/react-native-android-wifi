@@ -109,21 +109,7 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
         if (useWifi) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
 
-                if (Build.VERSION.SDK_INT ==23) {
-                    canWriteFlag = Settings.System.canWrite(context);
-
-                    if (!canWriteFlag) {
-                        Intent intent = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS);
-                        intent.setData(Uri.parse("package:" + context.getPackageName()));
-                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-
-                        context.startActivity(intent);
-                    }
-
-                }else{
-			canWriteFlag=true;
-		}
-			if (((Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) && canWriteFlag) || ((Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) && !(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M))) {
+   if (((Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)) || ((Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) && !(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M))) {
 
 					final ConnectivityManager manager = (ConnectivityManager) context
 							.getSystemService(Context.CONNECTIVITY_SERVICE);
