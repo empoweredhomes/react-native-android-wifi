@@ -49,7 +49,7 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 	//Constructor
 	public AndroidWifiModule(ReactApplicationContext reactContext) {
 		super(reactContext);
-		wifi = (WifiManager) reactContext.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+		wifi = (WifiManager) reactContext.getSystemService(Context.WIFI_SERVICE);
 		context = (ReactApplicationContext) getReactApplicationContext();
 	}
 
@@ -105,38 +105,35 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 	@ReactMethod
 	public void forceWifiUsage(boolean useWifi) {
 		boolean canWriteFlag = false;
+		
+        if (useWifi) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+					final ConnectivityManager manager = (ConnectivityManager) context
+							.getSystemService(Context.CONNECTIVITY_SERVICE);
+					NetworkRequest.Builder builder;
+					builder = new NetworkRequest.Builder();
+					//set the transport type do WIFI
+					builder.addTransportType(NetworkCapabilities.TRANSPORT_WIFI);
 
-		if (useWifi) {
-			if (((Build.VERSION.SDK_INT >= Build.VERSION_CODES.M))
-					|| ((Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
-							&& !(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M))) {
-				final ConnectivityManager manager = (ConnectivityManager) context
-						.getSystemService(Context.CONNECTIVITY_SERVICE);
-				NetworkRequest.Builder builder;
-				builder = new NetworkRequest.Builder();
-				//set the transport type do WIFI
-
-				builder.addTransportType(NetworkCapabilities.TRANSPORT_WIFI);
-				builder.addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
-
-				manager.requestNetwork(builder.build(), new ConnectivityManager.NetworkCallback() {
-					@Override
-					public void onAvailable(Network network) {
-						if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-							manager.bindProcessToNetwork(network);
-						} else {
-							ConnectivityManager.setProcessDefaultNetwork(network);
+					manager.requestNetwork(builder.build(), new ConnectivityManager.NetworkCallback() {
+						@Override
+						public void onAvailable(Network network) {
+							if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+								manager.bindProcessToNetwork(network);
+							} else {
+								ConnectivityManager.setProcessDefaultNetwork(network);
+							}
+							try {
+							} catch (Exception e) {
+								e.printStackTrace();
+							}
+							manager.unregisterNetworkCallback(this);
 						}
-						try {
-						} catch (Exception e) {
-							e.printStackTrace();
-						}
-						manager.unregisterNetworkCallback(this);
-					}
-				});
+					});
+				
+
 			}
 		} else {
-
 			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
 				ConnectivityManager manager = (ConnectivityManager) context
 						.getSystemService(Context.CONNECTIVITY_SERVICE);
@@ -204,7 +201,21 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 			String resultString = "" + result.SSID;
 			if (ssid.equals(resultString)) {
 				connected = connectTo(ssid, password);
-				break;
+
+			}
+		}
+		ssidFound.invoke(connected);
+	}
+
+	@ReactMethod
+	public void findAndreConnect(String ssid, String password, Callback ssidFound) {
+		List<ScanResult> results = wifi.getScanResults();
+		boolean connected = false;
+		for (ScanResult result : results) {
+			String resultString = "" + result.SSID;
+			if (ssid.equals(resultString)) {
+				connected = reConnectTo(ssid, password);
+
 			}
 		}
 		ssidFound.invoke(connected);
@@ -224,28 +235,44 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 	}
 
 	//Method to connect to WIFI Network
-	public boolean connectTo(String networkSSID, String key) {
-		WifiConfiguration config = new WifiConfiguration();
-		WifiInfo info = wifi.getConnectionInfo(); //get WifiInfo
-		int id = info.getNetworkId(); //get id of currently connected network
+	public boolean connectTo(String knownSSID, String key) {
+		//If Wifi is not enabled, enable it
+		if (!wifi.isWifiEnabled()) {
+			wifi.setWifiEnabled(true);
+		}
 
-		config.SSID = "\"" + networkSSID + "\"";
+		WifiConfiguration config = new WifiConfiguration();
+		config.priority = 10000;
+		config.SSID = "\"" + knownSSID + "\"";
+
 		if (key.isEmpty()) {
 			config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
 		}
-		int netID = wifi.addNetwork(config);
-
-		int tempConfigId = getExistingNetworkId(config.SSID);
-
-		if (tempConfigId != -1) {
-			netID = tempConfigId;
+		int networkId = wifi.addNetwork(config);
+		// it will return -1 if the config is already saved..
+		if (networkId == -1) {
+			networkId = getExistingNetworkId(config.SSID);
 		}
 
+		if (Build.VERSION.SDK_INT < 26) {
+			boolean es = wifi.saveConfiguration();
+		}
+		wifi.disconnect();
+		boolean enable = wifi.enableNetwork(networkId, true);
+		return enable;
+	}
+
+	//Method to connect to WIFI Network
+	public boolean reConnectTo(String knownSSID, String key) {
+		int networkId = -1;
+		networkId = getExistingNetworkId("\"" + knownSSID + "\"");
+		Log.println(5, TAG, "getting the networkID " + networkId + "   " + TAG);
+		if (Build.VERSION.SDK_INT < 26) {
+			boolean es = wifi.saveConfiguration();
+		}
 		boolean disconnect = wifi.disconnect();
-		wifi.disableNetwork(id); //disable current network
-		boolean enabled = wifi.enableNetwork(netID, true);
-		boolean connected = wifi.reconnect();
-		return true;
+		boolean bRet = wifi.enableNetwork(networkId, true);
+		return bRet;
 	}
 
 	public int getExistingNetworkId(String SSID) {
@@ -258,6 +285,24 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 			}
 		}
 		return -1;
+	}
+
+	@ReactMethod
+	public void disableScannedNetworks() {
+		List<ScanResult> results = wifi.getScanResults();
+		for (ScanResult result : results) {
+			String resultString = "" + result.SSID;
+			int networkId = getExistingNetworkId("\"" + resultString + "\"");
+			if (networkId == -1) {
+				continue;
+			}
+			wifi.disconnect();
+			boolean remove = wifi.removeNetwork(networkId);
+			if (!remove) {
+				wifi.removeNetwork(networkId);
+			}
+
+		}
 	}
 
 	//Disconnect current Wifi.
