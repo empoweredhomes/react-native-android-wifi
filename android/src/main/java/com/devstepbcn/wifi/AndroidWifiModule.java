@@ -234,9 +234,9 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 		}
 	}
 
-	//Method to connect to WIFI Network
+	// Method to connect to WIFI Network
 	public boolean connectTo(String knownSSID, String key) {
-		//If Wifi is not enabled, enable it
+		// If Wifi is not enabled, enable it
 		if (!wifi.isWifiEnabled()) {
 			wifi.setWifiEnabled(true);
 		}
@@ -244,21 +244,26 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 		WifiConfiguration config = new WifiConfiguration();
 		config.priority = 10000;
 		config.SSID = "\"" + knownSSID + "\"";
+		List<WifiConfiguration> mWifiConfigList = wifi.getConfiguredNetworks();
+		int updateNetwork = -1;
 
-		if (key.isEmpty()) {
-			config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
+		// Use the existing network config if exists
+		for (WifiConfiguration wifiConfig : mWifiConfigList) {
+			if (wifiConfig.SSID.equals(config.SSID)) {
+				updateNetwork = wifiConfig.networkId;
+				config = wifiConfig;
+			}
 		}
-		int networkId = wifi.addNetwork(config);
-		// it will return -1 if the config is already saved..
-		if (networkId == -1) {
-			networkId = getExistingNetworkId(config.SSID);
-		}
-
-		if (Build.VERSION.SDK_INT < 26) {
-			boolean es = wifi.saveConfiguration();
+		if (updateNetwork == -1) {
+			if (key.isEmpty()) {
+				config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
+			}
+			updateNetwork = wifi.addNetwork(config);
+			wifi.saveConfiguration();
 		}
 		wifi.disconnect();
-		boolean enable = wifi.enableNetwork(networkId, true);
+		Log.println(5, TAG, "getting the networkID " + updateNetwork + "   " + TAG);
+		boolean enable = wifi.enableNetwork(updateNetwork, true);
 		return enable;
 	}
 
