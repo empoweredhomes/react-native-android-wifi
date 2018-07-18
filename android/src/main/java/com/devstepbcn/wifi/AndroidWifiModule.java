@@ -236,17 +236,16 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 
 	// Method to connect to WIFI Network
 	public boolean connectTo(String knownSSID, String key) {
-		// If Wifi is not enabled, enable it
-		if (!wifi.isWifiEnabled()) {
-			wifi.setWifiEnabled(true);
-		}
 
 		WifiConfiguration config = new WifiConfiguration();
+		WifiInfo info = wifi.getConnectionInfo(); //get WifiInfo
+		int id = info.getNetworkId(); //get id of currently connected network
 		config.priority = 10000;
 		config.SSID = "\"" + knownSSID + "\"";
 		List<WifiConfiguration> mWifiConfigList = wifi.getConfiguredNetworks();
 		int updateNetwork = -1;
-
+		wifi.disableNetwork(id); //disable current network
+		
 		// Use the existing network config if exists
 		for (WifiConfiguration wifiConfig : mWifiConfigList) {
 			if (wifiConfig.SSID.equals(config.SSID)) {
