@@ -338,6 +338,34 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 
 		callback.invoke(bssid.toUpperCase());
 	}
+	
+	@ReactMethod
+	public void checkLocationService(Callback locationCheck) {
+		LocationManager lm = (LocationManager)context.getSystemService(Context.LOCATION_SERVICE);
+		boolean gps_enabled = false;
+		boolean network_enabled = false;
+
+		try {
+   		 gps_enabled = lm.isProviderEnabled(LocationManager.GPS_PROVIDER);
+		} catch(Exception ex) {}
+
+		try {
+   		 network_enabled = lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
+		} catch(Exception ex) {}
+
+   		if(!gps_enabled && !network_enabled) {
+			locationCheck.invoke(false);
+		}else{
+			locationCheck.invoke(true);
+		}
+	}
+
+
+	@ReactMethod
+	public void openLocationSetting(){
+		 Intent intent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
+		 context.startActivity(intent);
+	}
 
 	//This method will return current wifi signal strength
 	@ReactMethod
